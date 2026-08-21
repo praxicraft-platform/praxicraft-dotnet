@@ -1,0 +1,102 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "**/*.csproj"
+      - "CHANGELOG.md"
+      - ".github/workflows/publish.yml"
+
+concurrency:
+  group: publish-nuget
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: dotnet restore
+      - run: dotnet test --no-restore --verbosity normal
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: nuget
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Resolve version and decide whether to release
+        id: version
+        run: |
+          set -euo pipefail
+          CSPROJ_VERSION="$(grep -oP '(?<=<Version>)[^<]+' src/Praxicraft.Assess/Praxicraft.Assess.csproj)"
+          CODE_VERSION="$(grep -oP '(?<=String = \")[^\"]+' src/Praxicraft.Assess/Version.cs)"
+          if [ "$CSPROJ_VERSION" != "$CODE_VERSION" ]; then
+            echo "::error::csproj Version ($CSPROJ_VERSION) != Version.String ($CODE_VERSION)"
+            exit 1
+          fi
+          TAG="v${CSPROJ_VERSION}"
+          {
+            echo "version=$CSPROJ_VERSION"
+            echo "tag=$TAG"
+          } >> "$GITHUB_OUTPUT"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists — skipping publish."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New version $CSPROJ_VERSION — will tag and publish."
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create and push release tag
+        if: steps.version.outputs.should_publish == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Pack
+        if: steps.version.outputs.should_publish == 'true'
+        run: dotnet pack src/Praxicraft.Assess/Praxicraft.Assess.csproj -c Release -o ./nupkg
+
+      - name: Publish to NuGet
+        if: steps.version.outputs.should_publish == 'true'
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          dotnet nuget push "./nupkg/Praxicraft.Assess.${{ steps.version.outputs.version }}.nupkg" \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.should_publish == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            nupkg/*.nupkg
