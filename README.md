@@ -105,7 +105,7 @@ Responses are **flat JSON** (same shape as the Public API — no `{ "data": … 
 | Resource | Common methods |
 |----------|----------------|
 | `client.Org` | `RetrieveAsync()`, `StatsAsync()` |
-| `client.Assessments` | `ListAsync()`, `RetrieveAsync()`, `CreateAsync()`, `UpdateAsync()`, `ActivateAsync()`, `ListCasesAsync()`, `AttachCasesAsync()`, `ReplaceCasesAsync()`, `RemoveCaseAsync()` |
+| `client.Assessments` | `ListAsync()`, `RetrieveAsync()`, `CreateAsync()`, `UpdateAsync()`, `ActivateAsync()`, `ListTasksAsync()`, `AttachTasksAsync()`, `ReplaceTasksAsync()`, `RemoveTaskAsync()` |
 | `client.Invites` | `CreateAsync()`, `BulkCreateAsync()`, `ListAsync()`, `RetrieveAsync()`, `RemindAsync()`, `CancelAsync()` |
 | `client.Results` | `ListAsync()`, `RetrieveAsync()`, `IterAllAsync()` |
 | `client.Webhooks` | `ListAsync()`, `CreateAsync()`, `RetrieveAsync()`, `UpdateAsync()`, `DeleteAsync()`, `TestAsync()`, `DeliveriesAsync()` |
@@ -145,15 +145,15 @@ JsonElement assessment = await client.Assessments.CreateAsync(
     new Dictionary<string, object?> { ["title"] = "Backend screen" });
 string slug = assessment.GetProperty("slug").GetString()!;
 
-await client.Assessments.AttachCasesAsync(
+await client.Assessments.AttachTasksAsync(
     slug,
     new Dictionary<string, object?>
     {
-        ["cases"] = new object[]
+        ["tasks"] = new object[]
         {
             new Dictionary<string, object?>
             {
-                ["case_id"] = "<platform-or-org-case-uuid>",
+                ["task_id"] = "<platform-or-org-task-uuid>",
                 ["source"] = "platform",
             },
         },
