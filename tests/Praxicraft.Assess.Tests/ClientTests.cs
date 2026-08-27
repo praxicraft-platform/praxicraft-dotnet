@@ -39,7 +39,7 @@ public class ClientTests
         Assert.Equal(HttpMethod.Get, calls[0].Method);
         Assert.Contains("/api/v1/public/org/", calls[0].Url!.AbsoluteUri);
         Assert.Equal("Bearer ct_test_x", calls[0].Auth);
-        Assert.Equal("praxicraft-dotnet/0.1.0", calls[0].UserAgent);
+        Assert.Equal("praxicraft-dotnet/1.0.0", calls[0].UserAgent);
     }
 
     [Fact]
@@ -79,5 +79,70 @@ public class ClientTests
         {
             Environment.SetEnvironmentVariable("PRAXICRAFT_API_KEY", previous);
         }
+    }
+
+    [Fact]
+    public async Task AssessmentTasks_UseTaskPathsAndBodyKeys()
+    {
+        var calls = new List<(HttpMethod Method, string Url, string? Body)>();
+
+        using var client = new Client(new ClientOptions
+        {
+            ApiKey = "ct_test_x",
+            HttpHandler = async (request, ct) =>
+            {
+                var body = request.Content is null
+                    ? null
+                    : await request.Content.ReadAsStringAsync(ct);
+                calls.Add((request.Method, request.RequestUri!.AbsoluteUri, body));
+
+                if (request.RequestUri!.AbsoluteUri.EndsWith("/tasks/attach/"))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent("""{"attached":1}""", Encoding.UTF8, "application/json"),
+                    };
+                }
+
+                if (request.RequestUri.AbsoluteUri.EndsWith("/tasks/remove/"))
+                {
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"results":[{"id":"row-1"}]}""", Encoding.UTF8, "application/json"),
+                };
+            },
+        });
+
+        await client.Assessments.AttachTasksAsync(
+            "demo",
+            new Dictionary<string, object?>
+            {
+                ["tasks"] = new object[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["task_id"] = "task-1",
+                        ["source"] = "platform",
+                    },
+                },
+            });
+        await client.Assessments.ListTasksAsync("demo");
+        await client.Assessments.RemoveTaskAsync("demo", "row-1");
+
+        Assert.Equal(3, calls.Count);
+        Assert.Equal(HttpMethod.Post, calls[0].Method);
+        Assert.Contains("/assessments/demo/tasks/attach/", calls[0].Url);
+        Assert.Contains("\"tasks\"", calls[0].Body);
+        Assert.Contains("\"task_id\"", calls[0].Body);
+
+        Assert.Equal(HttpMethod.Get, calls[1].Method);
+        Assert.Contains("/assessments/demo/tasks/", calls[1].Url);
+
+        Assert.Equal(HttpMethod.Delete, calls[2].Method);
+        Assert.Contains("/assessments/demo/tasks/remove/", calls[2].Url);
+        Assert.Contains("assessment_task_id", calls[2].Body);
     }
 }

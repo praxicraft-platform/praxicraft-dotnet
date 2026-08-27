@@ -43,37 +43,37 @@ public sealed class AssessmentsResource
     public Task<JsonElement> ActivateAsync(string assessment, CancellationToken cancellationToken = default)
         => UpdateAsync(assessment, new Dictionary<string, object?> { ["status"] = "active" }, cancellationToken);
 
-    public Task<JsonElement> ListCasesAsync(
+    public Task<JsonElement> ListTasksAsync(
         string assessment,
         IReadOnlyDictionary<string, object?>? parameters = null,
         CancellationToken cancellationToken = default)
     {
         var key = Paths.PathSegment(assessment, "assessment");
-        return _client.GetAsync($"/assessments/{key}/cases/", parameters, cancellationToken);
+        return _client.GetAsync($"/assessments/{key}/tasks/", parameters, cancellationToken);
     }
 
-    public Task<JsonElement> AttachCasesAsync(
+    public Task<JsonElement> AttachTasksAsync(
         string assessment,
         IReadOnlyDictionary<string, object?> args,
         CancellationToken cancellationToken = default)
     {
         if (args is null || args.Count == 0)
         {
-            throw new ApiException("attachCases() requires cases or case_id", "INVALID_ARGUMENT");
+            throw new ApiException("attachTasks() requires tasks or task_id", "INVALID_ARGUMENT");
         }
 
         var key = Paths.PathSegment(assessment, "assessment");
-        return _client.PostAsync($"/assessments/{key}/cases/attach/", args, cancellationToken);
+        return _client.PostAsync($"/assessments/{key}/tasks/attach/", args, cancellationToken);
     }
 
-    public Task<JsonElement> ReplaceCasesAsync(
+    public Task<JsonElement> ReplaceTasksAsync(
         string assessment,
-        IEnumerable<object> cases,
+        IEnumerable<object> tasks,
         IReadOnlyDictionary<string, object?>? extra = null,
         CancellationToken cancellationToken = default)
     {
         var key = Paths.PathSegment(assessment, "assessment");
-        var body = new Dictionary<string, object?> { ["cases"] = cases.ToList() };
+        var body = new Dictionary<string, object?> { ["tasks"] = tasks.ToList() };
         if (extra is not null)
         {
             foreach (var (k, v) in extra)
@@ -82,24 +82,24 @@ public sealed class AssessmentsResource
             }
         }
 
-        return _client.PutAsync($"/assessments/{key}/cases/replace/", body, cancellationToken);
+        return _client.PutAsync($"/assessments/{key}/tasks/replace/", body, cancellationToken);
     }
 
-    public Task<JsonElement> RemoveCaseAsync(
+    public Task<JsonElement> RemoveTaskAsync(
         string assessment,
-        string assessmentCaseId,
+        string assessmentTaskId,
         CancellationToken cancellationToken = default)
     {
         var key = Paths.PathSegment(assessment, "assessment");
-        var caseId = assessmentCaseId?.Trim() ?? "";
-        if (caseId.Length == 0)
+        var taskId = assessmentTaskId?.Trim() ?? "";
+        if (taskId.Length == 0)
         {
-            throw new ApiException("assessmentCaseId must be a non-empty string", "INVALID_ARGUMENT");
+            throw new ApiException("assessmentTaskId must be a non-empty string", "INVALID_ARGUMENT");
         }
 
         return _client.DeleteAsync(
-            $"/assessments/{key}/cases/remove/",
-            new Dictionary<string, object?> { ["assessment_case_id"] = caseId },
+            $"/assessments/{key}/tasks/remove/",
+            new Dictionary<string, object?> { ["assessment_task_id"] = taskId },
             cancellationToken);
     }
 }
